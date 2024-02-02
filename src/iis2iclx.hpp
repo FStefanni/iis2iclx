@@ -7,7 +7,12 @@
 
 namespace iis2iclx {
 
-constexpr auto Iis2iclxDefaultAddress = ;
+struct Iis2iclxData
+{
+    float xAccelerationMg = 0.0F;
+    float yAccelerationMg = 0.0F;
+    float temperatureC = 0.0F;
+};
 
 class Iis2iclx
 {
@@ -19,13 +24,14 @@ public:
     ~Iis2iclx() noexcept;
 
     [[nodiscard]] auto setup() noexcept -> bool;
+    [[nodiscard]] auto read(Iis2iclxData & data) noexcept -> bool;
+
     [[nodiscard]] auto wire() noexcept -> TwoWire &;
     [[nodiscard]] auto writeAddress() const noexcept -> uint8_t;
     [[nodiscard]] auto readAddress() const noexcept -> uint8_t;
 
 private:
     TwoWire & _wire;
-    const int16_t _cs;
     const uint8_t _address;
 
     Iis2iclx(const Iis2iclx &) = delete;
