@@ -1,8 +1,8 @@
 # iis2iclx
 
 Porting of official iis2iclx STMicroelectronics to Arduino.
-Rest of README is the original one.
-Mine code is under MIT.
+the reminder of this README is the original one.
+Original code is under BSD, my own code is under MIT.
 
 ![latest tag](https://img.shields.io/github/v/tag/STMicroelectronics/iis2iclx-pid.svg?color=brightgreen)
 
