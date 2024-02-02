@@ -12,6 +12,8 @@ struct Iis2iclxData
     float xAccelerationMg = 0.0F;
     float yAccelerationMg = 0.0F;
     float temperatureC = 0.0F;
+    float xAngleDegree = 0.0F;
+    float yAngleDegree = 0.0F;
 };
 
 class Iis2iclx
@@ -27,8 +29,7 @@ public:
     [[nodiscard]] auto read(Iis2iclxData & data) noexcept -> bool;
 
     [[nodiscard]] auto wire() noexcept -> TwoWire &;
-    [[nodiscard]] auto writeAddress() const noexcept -> uint8_t;
-    [[nodiscard]] auto readAddress() const noexcept -> uint8_t;
+    [[nodiscard]] auto address() const noexcept -> uint8_t;
 
 private:
     TwoWire & _wire;

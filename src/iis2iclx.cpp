@@ -1,6 +1,7 @@
 #include "iis2iclx.hpp"
 #include "iis2iclx_reg.h"
 #include <array>
+#include <cmath>
 
 namespace iis2iclx {
 
@@ -12,7 +13,7 @@ auto platform_write(void * handle, uint8_t Reg, const uint8_t * Bufp, uint16_t l
     auto & iis = *reinterpret_cast<Iis2iclx *>(handle);
     auto & wire = iis.wire();
 
-    wire.beginTransmission(iis.writeAddress());
+    wire.beginTransmission(iis.address());
 
     const auto regSize = wire.write(&Reg, sizeof(uint8_t));
     if (regSize != 1) return -1;
@@ -30,13 +31,13 @@ auto platform_read(void * handle, uint8_t Reg, uint8_t * Bufp, uint16_t len) -> 
     auto & iis = *reinterpret_cast<Iis2iclx *>(handle);
     auto & wire = iis.wire();
 
-    wire.beginTransmission(iis.writeAddress());
+    wire.beginTransmission(iis.address());
     const auto regSize = wire.write(&Reg, sizeof(uint8_t));
-    const auto err = wire.endTransmission();
+    const auto err = wire.endTransmission(false);
     if (regSize != 1) return -1;
     if (err != 0) return err;
 
-    wire.requestFrom(iis.readAddress(), uint8_t(len));
+    wire.requestFrom(iis.address(), uint8_t(len));
 
     const auto * const maxAddr = Bufp + len;
     auto retSize = uint16_t(0);
@@ -57,7 +58,7 @@ Iis2iclx::Iis2iclx(
     const bool sa0IsVoltage
 ) noexcept:
     _wire(wire),
-    _address(sa0IsVoltage ? IIS2ICLX_I2C_ADD_H : IIS2ICLX_I2C_ADD_L)
+    _address((sa0IsVoltage ? IIS2ICLX_I2C_ADD_H : IIS2ICLX_I2C_ADD_L) >> 1)
 {}
 
 Iis2iclx::~Iis2iclx() noexcept
@@ -66,7 +67,9 @@ Iis2iclx::~Iis2iclx() noexcept
 auto Iis2iclx::setup() noexcept -> bool
 {
     constexpr auto maxInit = size_t(5);
-    constexpr auto initDelay = 1000;
+    constexpr auto initDelay = 500;
+
+    delay(initDelay);
 
     const stmdev_ctx_t ctx = {
         .write_reg = platform_write,
@@ -74,10 +77,8 @@ auto Iis2iclx::setup() noexcept -> bool
         .mdelay = nullptr,
         .handle = this
     };
-
     const auto err0 = iis2iclx_bus_mode_set(&ctx, IIS2ICLX_SEL_BY_HW);
     if (err0 != 0) return false;
-
     for (auto i = size_t(0); ; ++i)
     {
         auto whoAmI = uint8_t(0);
@@ -97,6 +98,17 @@ auto Iis2iclx::setup() noexcept -> bool
         if (err != 0) return false;
     } while (rst);
 
+    const auto err2 = iis2iclx_block_data_update_set(&ctx, PROPERTY_ENABLE);
+    if (err2 != 0) return false;
+    const auto err3 = iis2iclx_xl_data_rate_set(&ctx, IIS2ICLX_XL_ODR_12Hz5);
+    if (err3 != 0) return false;
+    const auto err4 = iis2iclx_xl_full_scale_set(&ctx, IIS2ICLX_2g);
+    if (err4 != 0) return false;
+    const auto err5 = iis2iclx_xl_hp_path_on_out_set(&ctx, IIS2ICLX_LP_ODR_DIV_100);
+    if (err5 != 0) return false;
+    const auto err6 = iis2iclx_xl_filter_lp2_set(&ctx, PROPERTY_ENABLE);
+    if (err6 != 0) return false;
+
     return true;
 }
 
@@ -114,13 +126,15 @@ auto Iis2iclx::read(Iis2iclxData & data) noexcept -> bool
     // Read acceleration field data
     const auto err0 = iis2iclx_xl_flag_data_ready_get(&ctx, &reg);
     if (err0 != 0 || reg == 0) return false;
+
     std::array<int16_t, dataSize> rawAcceleration = {};
     const auto err1 = iis2iclx_acceleration_raw_get(&ctx, rawAcceleration.data());
     if (err1 != 0) return false;
 
-    /* Read temperature data */
+    // Read temperature data
     const auto err2 = iis2iclx_temp_flag_data_ready_get(&ctx, &reg);
     if (err2 != 0 || reg == 0) return false;
+
     auto rawTemperature = int16_t(0);
     const auto err3 = iis2iclx_temperature_raw_get(&ctx, &rawTemperature);
     if (err3 != 0) return false;
@@ -128,7 +142,9 @@ auto Iis2iclx::read(Iis2iclxData & data) noexcept -> bool
     data.xAccelerationMg = iis2iclx_from_fs2g_to_mg(rawAcceleration[0]);
     data.yAccelerationMg = iis2iclx_from_fs2g_to_mg(rawAcceleration[1]);
     data.temperatureC = iis2iclx_from_lsb_to_celsius(rawTemperature);
-    //data.xAngle = arcsin()
+    data.xAngleDegree = asin(data.xAccelerationMg / 1000.0F) * (180.0F / float(M_PI));
+    data.yAngleDegree = asin(data.yAccelerationMg / 1000.0F) * (180.0F / float(M_PI));
+    data.zAngleDegree = atan2(data.yAccelerationMg / 1000.0F) * (180.0F / float(M_PI));
 
     return true;
 }
@@ -138,12 +154,7 @@ auto Iis2iclx::wire() noexcept -> TwoWire &
     return _wire;
 }
 
-auto Iis2iclx::writeAddress() const noexcept -> uint8_t
-{
-    return _address & 0xFE;
-}
-
-auto Iis2iclx::readAddress() const noexcept -> uint8_t
+auto Iis2iclx::address() const noexcept -> uint8_t
 {
     return _address;
 }

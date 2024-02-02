@@ -27,6 +27,7 @@ auto setup() -> void
     Wire.setPins(sda, scl);
     Wire.begin();
     if (!sensor.setup()) fatalError("Unable to setup iis2iclx");
+    Serial.println("Setup success!");
 }
 
 auto loop() -> void
@@ -37,5 +38,7 @@ auto loop() -> void
     Serial.println("Acceleration X (mg): " + String(data.xAccelerationMg));
     Serial.println("Acceleration Y (mg): " + String(data.yAccelerationMg));
     Serial.println("Temperature (C): " + String(data.temperatureC));
+    Serial.println("Angle X (Degree): " + String(data.xAngleDegree));
+    Serial.println("Angle Y (Degree): " + String(data.yAngleDegree));
     delay(readDelay);
 }
